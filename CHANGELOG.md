@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 - 2026-09-27
+
+- add deterministic effect graph with command -> metadata -> effect chains
+- add explicit JSON policy files with deny lists and `deny_unknowns`
+- keep repository policy opt-in rather than auto-loading it
+- add policy fingerprint and full report SHA-256 while preserving the v0.1 prediction hash
+- harden policy loading with bounded POSIX dir-fd traversal, `O_NOFOLLOW`, and hardlink rejection
+- expand regression suite from 40 to 52 tests
+
 ## 0.1.1 - 2026-09-27
 
 - add source-backed npm lifecycle expansion
