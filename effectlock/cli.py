@@ -10,6 +10,9 @@ import sys
 
 from . import __version__
 from .core import EFFECTS, predict, terminal_safe
+from .graph import render_effect_graph
+from .policy import PolicyConfig, evaluate_policy, load_policy
+from .report import build_report
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -17,7 +20,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument("--cwd", default=".", help="project directory (default: current directory)")
     p.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    p.add_argument("--graph", action="store_true", help="show a human-readable effect graph")
     p.add_argument("--receipt", help="write receipt under the project directory")
+    p.add_argument("--policy", help="load an explicit JSON policy under the project directory")
     p.add_argument("--deny", action="append", choices=EFFECTS, default=[], help="exit 3 if an effect is predicted; repeatable")
     p.add_argument("command", nargs=argparse.REMAINDER, help="command to inspect; prefix with --")
     return p
@@ -54,13 +59,7 @@ def safe_receipt_path(cwd: Path, requested: str) -> Path:
 
 
 def write_receipt(cwd: Path, requested: str, body: dict) -> Path:
-    """Write a receipt atomically beneath cwd without following symlinks.
-
-    The POSIX dir-fd walk prevents an untrusted project from swapping a checked
-    parent directory for a symlink between validation and write. The final file
-    is written to a fresh temporary name and atomically renamed into place, so
-    an existing hard link is never opened for mutation.
-    """
+    """Write a receipt atomically beneath cwd without following symlinks."""
     root, rel = _receipt_relative_path(cwd, requested)
     if os.name != "posix" or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
         raise ValueError("secure receipt writing requires a POSIX platform with O_NOFOLLOW")
@@ -139,17 +138,21 @@ def main(argv: list[str] | None = None) -> int:
     cwd = Path(args.cwd)
     try:
         pred = predict(command, cwd)
+        config = load_policy(cwd, args.policy) if args.policy else PolicyConfig()
+        decision = evaluate_policy(pred, args.deny, config)
         receipt_path = safe_receipt_path(cwd, args.receipt) if args.receipt else None
     except ValueError as exc:
         print(f"effectlock: {terminal_safe(exc)}", file=sys.stderr)
         return 2
-    body = pred.to_dict()
+
+    body = build_report(pred, decision)
     if receipt_path:
         try:
-            receipt_path = write_receipt(cwd, args.receipt, body)
+            write_receipt(cwd, args.receipt, body)
         except (OSError, ValueError) as exc:
             print(f"effectlock: {terminal_safe(exc)}", file=sys.stderr)
             return 2
+
     if args.json:
         print(json.dumps(body, indent=2, sort_keys=True))
     else:
@@ -157,15 +160,23 @@ def main(argv: list[str] | None = None) -> int:
         print("effects: " + (", ".join(pred.effects) if pred.effects else "none predicted"))
         for ev in pred.evidence:
             print(f"  [{ev.confidence}] {ev.effect}: {terminal_safe(ev.reason)} ({terminal_safe(ev.source)})")
+        if args.graph:
+            print("effect graph:")
+            for line in render_effect_graph(pred):
+                print(f"  {terminal_safe(line)}")
         if pred.unknowns:
             print("unknowns:")
             for item in pred.unknowns:
                 print(f"  - {terminal_safe(item)}")
-        print(f"receipt-sha256: {body['sha256']}")
-    denied = sorted(set(args.deny).intersection(pred.effects))
-    if denied:
+        print(f"prediction-sha256: {body['sha256']}")
+        print(f"report-sha256: {body['report_sha256']}")
+
+    if not decision.allowed:
         if not args.json:
-            print("blocked by policy: " + ", ".join(denied), file=sys.stderr)
+            reasons = list(decision.denied_effects)
+            if decision.denied_unknowns:
+                reasons.append("unknowns")
+            print("blocked by policy: " + ", ".join(reasons), file=sys.stderr)
         return 3
     return 0
 
