@@ -21,7 +21,7 @@ case "$BIN" in ""|/|.) echo "effectlock: unsafe EFFECTLOCK_BIN" >&2; exit 1;; es
 
 mkdir -p "$DEST/effectlock" "$BIN"
 chmod 700 "$ROOT" "$DEST" 2>/dev/null || true
-cp effectlock/__init__.py effectlock/core.py effectlock/cli.py "$DEST/effectlock/"
+cp effectlock/__init__.py effectlock/core.py effectlock/graph.py effectlock/policy.py effectlock/report.py effectlock/cli.py "$DEST/effectlock/"
 chmod 600 "$DEST/effectlock/"*.py
 
 LAUNCHER="$BIN/effectlock"
