@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "effectlock"
-version = "0.1.1"
+version = "0.2.0"
 description = "Local transitive-effect preflight for developer commands and coding-agent approvals"
 readme = "README.md"
 requires-python = ">=3.10"
