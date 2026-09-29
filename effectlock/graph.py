@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from typing import Any
 
 from .core import EFFECTS, Prediction
 
@@ -12,10 +13,10 @@ def _source_id(source: str) -> str:
     return f"source:{digest}"
 
 
-def build_effect_graph(pred: Prediction) -> dict:
+def build_effect_graph(pred: Prediction) -> dict[str, Any]:
     """Build a deterministic graph without exposing script bodies."""
-    nodes: list[dict] = [{"id": "command", "kind": "command", "label": "requested command"}]
-    edges: list[dict] = []
+    nodes: list[dict[str, Any]] = [{"id": "command", "kind": "command", "label": "requested command"}]
+    edges: list[dict[str, Any]] = []
     source_nodes: dict[str, str] = {}
     seen_edges: set[tuple[str, str, str, str]] = set()
 

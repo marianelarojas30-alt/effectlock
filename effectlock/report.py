@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+from typing import Any
 
 from .core import Prediction
 from .graph import build_effect_graph
 from .policy import PolicyDecision
 
 
-def build_report(pred: Prediction, decision: PolicyDecision) -> dict:
+def build_report(pred: Prediction, decision: PolicyDecision) -> dict[str, Any]:
     """Build the additive v0.2 report while preserving the v0.1 prediction hash."""
     body = pred.to_dict()
     body["graph"] = build_effect_graph(pred)

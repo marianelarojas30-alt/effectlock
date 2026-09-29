@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 - 2026-09-29
+
+- fix: multi-argument commands are re-quoted with `shlex.join`, so the inspected and recorded command matches what would run
+- fix: receipt test no longer fails on macOS (`/var` -> `/private/var`)
+- add `docs/SRS.md` with requirement-to-test traceability
+- add CI quality gate: ruff, strict mypy, branch coverage >= 85%
+
 ## 0.2.0 - 2026-09-27
 
 - add deterministic effect graph with command -> metadata -> effect chains

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 import hashlib
 import json
 import os
 import stat
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 from .core import EFFECTS, Prediction
 
@@ -18,7 +19,7 @@ class PolicyConfig:
     deny: tuple[str, ...] = ()
     deny_unknowns: bool = False
 
-    def canonical(self) -> dict:
+    def canonical(self) -> dict[str, Any]:
         return {
             "schema": "effectlock.policy.v1",
             "deny": list(self.deny),
@@ -37,7 +38,7 @@ class PolicyDecision:
     denied_unknowns: bool
     effective: PolicyConfig
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "schema": "effectlock.policy-decision.v1",
             "allowed": self.allowed,

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from pathlib import Path
 import hashlib
 import json
 import os
 import re
 import shlex
 import unicodedata
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
 
 EFFECTS = ("process", "file", "environment", "network", "container", "mcp")
 
@@ -26,7 +27,7 @@ class Prediction:
     evidence: tuple[Evidence, ...]
     unknowns: tuple[str, ...]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         body = {
             "schema": "effectlock.prediction.v1",
             "command": self.command,
@@ -97,7 +98,7 @@ def _read_project_text(cwd: Path, rel: str, max_bytes: int = 1_000_000) -> str |
         return None
 
 
-def _read_project_json(cwd: Path, rel: str) -> dict | None:
+def _read_project_json(cwd: Path, rel: str) -> dict[str, Any] | None:
     text = _read_project_text(cwd, rel)
     if text is None:
         return None
@@ -178,7 +179,6 @@ def _git(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) 
         # Deliberately avoid invoking Git while inspecting an untrusted repository.
         # Only inspect the conventional in-repository .git/hooks directory. Worktree
         # or custom hooks paths are reported as unknown rather than followed outside cwd.
-        hooks_dir = cwd / ".git" / "hooks"
         names = ("pre-commit", "prepare-commit-msg", "commit-msg", "post-commit")
         found = False
         for name in names:
@@ -266,7 +266,6 @@ def _mcp(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) 
     _add(out, "process", "medium", "command appears to invoke MCP-related tooling", "command semantics")
     _add(out, "mcp", "high", "MCP call can exercise the capability represented by the configured server/tool", "command semantics")
     for name in (".mcp.json", "mcp.json"):
-        p = cwd / name
         obj = _read_project_json(cwd, name)
         if not obj:
             continue
@@ -305,10 +304,8 @@ def predict(command: str, cwd: Path) -> Prediction:
         raise ValueError(f"cannot parse command: {exc}") from exc
     out: list[Evidence] = []
     unknowns: list[str] = []
-    handled = False
     for f in (_npm, _git, _pip, _cargo, _docker, _mcp):
         if f(words, cwd, out, unknowns):
-            handled = True
             break
     _generic(words, command, out)
     effects = tuple(e for e in EFFECTS if any(x.effect == e for x in out))
