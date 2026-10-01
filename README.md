@@ -105,3 +105,12 @@ effectlock -- "npm install && curl https://example.com"
 EffectLock is a preflight analyzer, not a sandbox. Static prediction is intentionally conservative and incomplete. `unknowns` are part of the product contract and must not be interpreted as approval.
 
 See [SECURITY.md](SECURITY.md), [ARCHITECTURE.md](ARCHITECTURE.md), and [THREAT_MODEL.md](THREAT_MODEL.md).
+
+## License
+
+Copyright (c) 2026 Marianela Bourgault.
+
+EffectLock is **free for noncommercial use** under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may not sell it, charge for it, or use it for commercial purposes without a separate written license from the author. Copies and modified versions must keep the copyright notice.
+
+Versions up to and including 0.2.0 were published under the MIT License; copies obtained under those terms keep them.
+

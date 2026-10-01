@@ -16,3 +16,4 @@ __all__ = [
     "predict",
 ]
 __version__ = "0.2.0"
+NOTICE = "Copyright (c) 2026 Marianela Bourgault. Free for noncommercial use only (PolyForm Noncommercial 1.0.0)."

@@ -6,4 +6,4 @@ Original code, documentation, and other contributions authored by Marianela Bour
 
 Third-party code, dependencies, assets, and contributions by other authors retain their respective copyright, attribution, and license terms.
 
-This notice does not replace or override any existing open-source license in this repository.
+EffectLock is licensed under the PolyForm Noncommercial License 1.0.0 (see `LICENSE`). It is free to use, study, and modify for noncommercial purposes. Selling it, charging for it, or using it to make money requires a separate written license from Marianela Bourgault. Any copy or modified version must keep the Required Notice from `LICENSE`.

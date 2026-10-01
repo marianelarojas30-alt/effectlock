@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- relicense from MIT to PolyForm Noncommercial 1.0.0: free for noncommercial use, commercial use requires a separate license from the author
+- show copyright and license notice in `--version` and `--help`
+
 ## 0.2.0 - 2026-09-27
 
 - add deterministic effect graph with command -> metadata -> effect chains

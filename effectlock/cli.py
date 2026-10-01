@@ -8,7 +8,7 @@ import secrets
 import stat
 import sys
 
-from . import __version__
+from . import NOTICE, __version__
 from .core import EFFECTS, predict, terminal_safe
 from .graph import render_effect_graph
 from .policy import PolicyConfig, evaluate_policy, load_policy
@@ -16,8 +16,8 @@ from .report import build_report
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="effectlock", description="Preview transitive effects before approving a developer command.")
-    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    p = argparse.ArgumentParser(prog="effectlock", description="Preview transitive effects before approving a developer command.", epilog=NOTICE)
+    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}\n{NOTICE}")
     p.add_argument("--cwd", default=".", help="project directory (default: current directory)")
     p.add_argument("--json", action="store_true", help="emit machine-readable JSON")
     p.add_argument("--graph", action="store_true", help="show a human-readable effect graph")
