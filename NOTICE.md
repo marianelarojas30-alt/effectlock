@@ -10,6 +10,6 @@ EffectLock is licensed under the PolyForm Noncommercial License 1.0.0 (see `LICE
 
 ## Origin fingerprint
 
-Every EffectLock source file carries the origin fingerprint `EffectLock-Origin: EL-MB-C8FBF0BBFB03BD6A` in its header, and every JSON report and receipt includes a `generator` block with the same fingerprint, the author, the license, and the original source URL. The `generator` block is covered by `report_sha256`, so changing it invalidates the report hash.
+Every EffectLock source file carries the origin fingerprint `EffectLock-Origin: EL-MB-C8FBF0BBFB03BD6A` in its header, and every JSON report and receipt includes a `generator` block with the same fingerprint, the author, the license, and the original source URL. The `generator` block is covered by `report_sha256`, so editing it without recomputing the hash is detectable. This is a tamper-evidence check, not a cryptographic signature.
 
 Removing or altering these notices in copies or modified versions breaches the license and may also violate 17 U.S.C. § 1202 (integrity of copyright management information).

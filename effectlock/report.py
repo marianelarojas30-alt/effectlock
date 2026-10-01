@@ -20,7 +20,7 @@ def build_report(pred: Prediction, decision: PolicyDecision) -> dict:
     body = pred.to_dict()
     body["graph"] = build_effect_graph(pred)
     body["policy"] = decision.to_dict()
-    # Covered by report_sha256, so editing the origin mark invalidates the report hash.
+    # Covered by report_sha256: editing the origin mark without rehashing is detectable.
     body["generator"] = dict(GENERATOR)
     canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
     body["report_sha256"] = hashlib.sha256(canonical).hexdigest()
