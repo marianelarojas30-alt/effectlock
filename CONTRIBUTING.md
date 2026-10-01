@@ -28,6 +28,8 @@ Every pull request must:
 
 EffectLock is distributed under the [PolyForm Noncommercial License 1.0.0](LICENSE), and the project owner, Marianela Bourgault, also offers it under separate commercial licenses.
 
-By submitting a contribution, you confirm that you wrote it or have the right to submit it, and you grant Marianela Bourgault a perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to use, modify, sublicense, and distribute your contribution under any license terms, including commercial ones. You keep the copyright in your contribution.
+Contributions are accepted only as free, voluntary, unpaid work. By submitting one, you agree that you will not receive and will not claim any payment, compensation, royalty, or share of revenue for it, now or in the future, including if EffectLock or a commercial license to it is sold.
+
+By submitting a contribution, you also confirm that you wrote it or have the right to submit it, and you grant Marianela Bourgault a perpetual, worldwide, non-exclusive, royalty-free, irrevocable license to use, modify, sublicense, and distribute your contribution under any license terms, including commercial ones. You keep the copyright in your contribution.
 
 If you cannot agree to this, please do not submit a pull request.
