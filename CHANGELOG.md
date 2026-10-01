@@ -4,6 +4,7 @@
 
 - relicense from MIT to PolyForm Noncommercial 1.0.0: free for noncommercial use, commercial use requires a separate license from the author
 - show copyright and license notice in `--version` and `--help`
+- add origin fingerprint `EL-MB-C8FBF0BBFB03BD6A` to every source file header and a hash-covered `generator` block to JSON reports and receipts, enforced by `tests/test_provenance.py`
 
 ## 0.2.0 - 2026-09-27
 

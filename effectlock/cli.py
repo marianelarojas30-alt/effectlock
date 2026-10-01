@@ -1,3 +1,9 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2026 Marianela Bourgault
+# Part of EffectLock, original source: https://github.com/marianelarojas30-alt/effectlock
+# EffectLock-Origin: EL-MB-C8FBF0BBFB03BD6A
+# This notice must be kept in all copies and modified versions (see LICENSE).
+
 from __future__ import annotations
 
 import argparse
@@ -8,7 +14,8 @@ import secrets
 import stat
 import sys
 
-from . import NOTICE, __version__
+from . import __version__
+from .provenance import NOTICE
 from .core import EFFECTS, predict, terminal_safe
 from .graph import render_effect_graph
 from .policy import PolicyConfig, evaluate_policy, load_policy

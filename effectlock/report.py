@@ -1,3 +1,9 @@
+# SPDX-License-Identifier: LicenseRef-PolyForm-Noncommercial-1.0.0
+# Copyright (c) 2026 Marianela Bourgault
+# Part of EffectLock, original source: https://github.com/marianelarojas30-alt/effectlock
+# EffectLock-Origin: EL-MB-C8FBF0BBFB03BD6A
+# This notice must be kept in all copies and modified versions (see LICENSE).
+
 from __future__ import annotations
 
 import hashlib
@@ -6,6 +12,7 @@ import json
 from .core import Prediction
 from .graph import build_effect_graph
 from .policy import PolicyDecision
+from .provenance import GENERATOR
 
 
 def build_report(pred: Prediction, decision: PolicyDecision) -> dict:
@@ -13,6 +20,8 @@ def build_report(pred: Prediction, decision: PolicyDecision) -> dict:
     body = pred.to_dict()
     body["graph"] = build_effect_graph(pred)
     body["policy"] = decision.to_dict()
+    # Covered by report_sha256, so editing the origin mark invalidates the report hash.
+    body["generator"] = dict(GENERATOR)
     canonical = json.dumps(body, sort_keys=True, separators=(",", ":")).encode("utf-8")
     body["report_sha256"] = hashlib.sha256(canonical).hexdigest()
     return body
