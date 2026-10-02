@@ -13,9 +13,9 @@
 
 ## Flow
 
-`command -> shell parse -> family expander -> metadata expansion -> evidence -> effect graph -> policy -> receipt`
+`command -> shell parse -> segments (&&, ||, ;, |) -> unwrap (sudo, env, sh -c) -> family expander -> metadata expansion -> evidence -> effect graph -> policy -> receipt`
 
-Expanders are deterministic functions. They may inspect bounded local metadata such as `package.json`, `pyproject.toml`, `build.rs`, `Dockerfile`, Git hook paths and MCP JSON configuration.
+Expanders are deterministic functions. They may inspect bounded local metadata such as `package.json`, `pyproject.toml`, `build.rs`, `Dockerfile`, Git hook paths and MCP JSON configuration. A `cd` into a project subdirectory redirects metadata reads for later segments; a `cd` that leaves the project is reported as unknown.
 
 ### Effect graph
 

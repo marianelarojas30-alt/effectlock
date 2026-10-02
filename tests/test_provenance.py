@@ -4,12 +4,12 @@
 # EffectLock-Origin: EL-MB-C8FBF0BBFB03BD6A
 # This notice must be kept in all copies and modified versions (see LICENSE).
 
-from pathlib import Path
 import hashlib
 import json
 import subprocess
 import sys
 import unittest
+from pathlib import Path
 
 from effectlock import ORIGIN_ID, PolicyConfig, build_report, evaluate_policy, predict
 from effectlock.provenance import GENERATOR
