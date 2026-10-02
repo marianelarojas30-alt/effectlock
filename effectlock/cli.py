@@ -17,10 +17,10 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
-from .provenance import NOTICE
 from .core import EFFECTS, predict, terminal_safe
 from .graph import render_effect_graph
 from .policy import PolicyConfig, evaluate_policy, load_policy
+from .provenance import NOTICE
 from .report import build_report
 
 
