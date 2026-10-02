@@ -219,7 +219,7 @@ class EffectLockTests(unittest.TestCase):
         target.write_text("old")
         body = predict("echo hi", self.root).to_dict()
         written = write_receipt(self.root, ".effectlock/last.json", body)
-        self.assertEqual(written, target)
+        self.assertEqual(written, target.resolve())  # macOS: /var is a symlink to /private/var
         self.assertEqual(json.loads(target.read_text())["sha256"], body["sha256"])
         self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o600)
 
