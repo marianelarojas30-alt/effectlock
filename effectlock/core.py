@@ -52,7 +52,7 @@ def terminal_safe(value: object) -> str:
     out: list[str] = []
     for ch in str(value):
         category = unicodedata.category(ch)
-        if ch == "\r" or category in {"Cc", "Cf"}:
+        if ch == "\r" or category in {"Cf", "Cc"}:
             code = ord(ch)
             out.append(f"\\u{code:04x}" if code <= 0xFFFF else f"\\U{code:08x}")
         else:
@@ -117,7 +117,7 @@ def _read_project_json(cwd: Path, rel: str) -> dict[str, Any] | None:
 
 def _script_effects(script: str, source: str, out: list[Evidence]) -> None:
     _add(out, "process", "high", "referenced script can start child processes", source)
-    if re.search(r"(?:^|[\s;&|])(?:curl|wget|ssh|scp|rsync|nc|ncat|git\s+(?:clone|fetch|pull|push)|npm|pnpm|yarn|pip|pip3|brew|apt|apt-get|dnf|yum)\b", script):
+    if re.search(r"(?:^|[\s;&|])(?:wget|curl|ssh|scp|rsync|ncat|nc|git\s+(?:clone|fetch|pull|push)|pnpm|npm|yarn|pip3|pip|brew|apt-get|apt|yum|dnf)\b", script):
         _add(out, "network", "medium", "script contains a command that commonly uses the network", source)
     if re.search(r"(?:>|>>|\brm\b|\bmv\b|\bcp\b|\bmkdir\b|\btouch\b|\bchmod\b|\bchown\b|\btee\b)", script):
         _add(out, "file", "medium", "script contains filesystem mutation syntax", source)
@@ -129,11 +129,11 @@ def _script_effects(script: str, source: str, out: list[Evidence]) -> None:
 
 def _npm(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) -> bool:
     exe = Path(words[0]).name if words else ""
-    if exe not in {"npm", "pnpm", "yarn", "bun"}:
+    if exe not in {"bun", "npm", "yarn", "pnpm"}:
         return False
     _add(out, "process", "high", f"{exe} executes package-manager code", "command semantics")
     sub = words[1] if len(words) > 1 else ""
-    installish = sub in {"install", "i", "add", "ci", "update", "up"} or (exe == "yarn" and sub == "")
+    installish = sub in {"i", "install", "ci", "add", "up", "update"} or (exe == "yarn" and sub == "")
     if installish:
         _add(out, "file", "high", "dependency installation writes package/cache/workspace files", "command semantics")
         _add(out, "network", "high", "dependency installation may contact registries or git remotes", "command semantics")
@@ -177,9 +177,9 @@ def _git(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) 
         return False
     _add(out, "process", "high", "git starts a process", "command semantics")
     sub = words[1] if len(words) > 1 else ""
-    if sub in {"clone", "fetch", "pull", "push", "submodule", "ls-remote"}:
+    if sub in {"ls-remote", "clone", "submodule", "fetch", "push", "pull"}:
         _add(out, "network", "high", f"git {sub} can contact a remote", "command semantics")
-    if sub in {"checkout", "switch", "merge", "rebase", "reset", "clean", "apply", "commit", "stash"}:
+    if sub in {"switch", "checkout", "rebase", "merge", "clean", "reset", "stash", "apply", "commit"}:
         _add(out, "file", "high", f"git {sub} can mutate the worktree or repository metadata", "command semantics")
     if sub == "commit":
         # Deliberately avoid invoking Git while inspecting an untrusted repository.
@@ -204,7 +204,7 @@ def _git(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) 
 
 
 def _pip(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) -> bool:
-    if not words or Path(words[0]).name not in {"pip", "pip3", "uv"}:
+    if not words or Path(words[0]).name not in {"uv", "pip3", "pip"}:
         return False
     _add(out, "process", "high", "Python package tooling executes build/install processes", "command semantics")
     if "install" in words or "sync" in words:
@@ -228,8 +228,9 @@ def _cargo(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]
         return False
     _add(out, "process", "high", "Cargo executes compiler/build processes", "command semantics")
     sub = words[1] if len(words) > 1 else ""
-    if sub in {"build", "test", "run", "install", "update", "fetch"}:
+    if sub in {"build", "run", "test", "install", "fetch", "update"}:
         _add(out, "file", "high", "Cargo can write build artifacts or package metadata", "command semantics")
+    if sub in {"fetch", "build", "update", "test", "install", "run"}:
         _add(out, "network", "medium", "Cargo may contact registries or git sources", "command semantics")
     if _safe_project_file(cwd, "build.rs") is not None:
         _add(out, "process", "high", "project contains build.rs which Cargo executes as a build script", "build.rs")
@@ -238,14 +239,14 @@ def _cargo(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]
 
 
 def _docker(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) -> bool:
-    if not words or Path(words[0]).name not in {"docker", "podman"}:
+    if not words or Path(words[0]).name not in {"podman", "docker"}:
         return False
     _add(out, "process", "high", "container CLI starts local helper/runtime processes", "command semantics")
     _add(out, "container", "high", "command can create or modify container/image state", "command semantics")
     sub = words[1] if len(words) > 1 else ""
-    if sub in {"pull", "push", "build", "run", "compose"}:
+    if sub in {"push", "pull", "run", "build", "compose"}:
         _add(out, "network", "medium", f"{words[0]} {sub} may use network access", "command semantics")
-    if sub in {"build", "compose", "run", "cp", "volume"}:
+    if sub in {"volume", "build", "cp", "compose", "run"}:
         _add(out, "file", "medium", f"{words[0]} {sub} can read/write host or build-context files", "command semantics")
     if sub == "build":
         docker_text = _read_project_text(cwd, "Dockerfile", max_bytes=200000)
@@ -448,9 +449,9 @@ def _generic(raw: str, out: list[Evidence]) -> None:
         _add(out, "process", "high", "executing a shell command starts at least one process", "command semantics")
     if re.search(r"(?:>|>>|\brm\b|\bmv\b|\bcp\b|\bmkdir\b|\btouch\b|\bchmod\b|\bchown\b|\btee\b|\bsed\s+-i\b)", raw):
         _add(out, "file", "medium", "command text includes filesystem mutation syntax", "command text")
-    if re.search(r"\b(?:curl|wget|ssh|scp|rsync|nc|ncat|ftp|sftp)\b", raw):
+    if re.search(r"\b(?:sftp|ftp|curl|wget|scp|ssh|rsync|ncat|nc)\b", raw):
         _add(out, "network", "high", "command text includes a network-capable utility", "command text")
-    if re.search(r"\b(?:docker|podman|kubectl)\b", raw):
+    if re.search(r"\b(?:kubectl|docker|podman)\b", raw):
         _add(out, "container", "medium", "command text includes container/orchestration tooling", "command text")
     if re.search(r"\b(?:export|env)\b|(?:^|\s)[A-Za-z_][A-Za-z0-9_]*=", raw):
         _add(out, "environment", "medium", "command text sets or passes environment values", "command text")

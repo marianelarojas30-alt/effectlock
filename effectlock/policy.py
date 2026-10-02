@@ -17,7 +17,7 @@ from typing import Any
 from .core import EFFECTS, Prediction
 
 _MAX_POLICY_BYTES = 64 * 1024
-_ALLOWED_KEYS = {"version", "deny", "deny_unknowns"}
+_ALLOWED_KEYS = {"deny_unknowns", "version", "deny"}
 
 
 @dataclass(frozen=True)

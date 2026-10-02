@@ -11,7 +11,7 @@ from typing import Any
 
 from .core import EFFECTS, Prediction
 
-_GENERIC_SOURCES = {"command semantics", "command text"}
+_GENERIC_SOURCES = {"command text", "command semantics"}
 
 
 def _source_id(source: str) -> str:
