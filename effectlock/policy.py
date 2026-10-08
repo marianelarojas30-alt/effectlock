@@ -6,14 +6,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 import hashlib
 import json
-import os
-import stat
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 from .core import EFFECTS, Prediction
+from .safefs import read_bytes_under
 
 _MAX_POLICY_BYTES = 64 * 1024
 _ALLOWED_KEYS = {"deny_unknowns", "version", "deny"}
@@ -24,7 +24,7 @@ class PolicyConfig:
     deny: tuple[str, ...] = ()
     deny_unknowns: bool = False
 
-    def canonical(self) -> dict:
+    def canonical(self) -> dict[str, Any]:
         return {
             "schema": "effectlock.policy.v1",
             "deny": list(self.deny),
@@ -43,7 +43,7 @@ class PolicyDecision:
     denied_unknowns: bool
     effective: PolicyConfig
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "schema": "effectlock.policy-decision.v1",
             "allowed": self.allowed,
@@ -67,53 +67,7 @@ def _policy_relative_path(requested: str) -> Path:
 
 def _read_policy_bytes(cwd: Path, requested: str) -> bytes:
     """Read a bounded policy file beneath cwd without following symlinks."""
-    root = cwd.resolve()
-    rel = _policy_relative_path(requested)
-    if os.name != "posix" or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
-        raise ValueError("secure policy loading requires a POSIX platform with O_NOFOLLOW")
-
-    dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-    root_fd = os.open(root, dir_flags)
-    opened: list[int] = [root_fd]
-    dir_fd = root_fd
-    try:
-        for part in rel.parts[:-1]:
-            try:
-                child_fd = os.open(part, dir_flags, dir_fd=dir_fd)
-            except OSError as exc:
-                raise ValueError("policy path contains an unsafe directory") from exc
-            opened.append(child_fd)
-            dir_fd = child_fd
-
-        file_flags = os.O_RDONLY | os.O_NOFOLLOW
-        try:
-            fd = os.open(rel.parts[-1], file_flags, dir_fd=dir_fd)
-        except OSError as exc:
-            raise ValueError("policy file is not safely readable") from exc
-        try:
-            st = os.fstat(fd)
-            if not stat.S_ISREG(st.st_mode) or st.st_size > _MAX_POLICY_BYTES or st.st_nlink != 1:
-                raise ValueError("policy file is not safely readable")
-            chunks: list[bytes] = []
-            remaining = _MAX_POLICY_BYTES + 1
-            while remaining > 0:
-                chunk = os.read(fd, min(remaining, 16384))
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                remaining -= len(chunk)
-            raw = b"".join(chunks)
-            if len(raw) > _MAX_POLICY_BYTES:
-                raise ValueError("policy file is not safely readable")
-            return raw
-        finally:
-            os.close(fd)
-    finally:
-        for fd in reversed(opened):
-            try:
-                os.close(fd)
-            except OSError:
-                pass
+    return read_bytes_under(cwd, _policy_relative_path(requested), _MAX_POLICY_BYTES, what="policy")
 
 
 def load_policy(cwd: Path, requested: str) -> PolicyConfig:

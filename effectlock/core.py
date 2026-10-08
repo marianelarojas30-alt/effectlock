@@ -6,14 +6,15 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from pathlib import Path
 import hashlib
 import json
 import os
 import re
 import shlex
 import unicodedata
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any
 
 EFFECTS = ("process", "file", "environment", "network", "container", "mcp")
 
@@ -32,7 +33,7 @@ class Prediction:
     evidence: tuple[Evidence, ...]
     unknowns: tuple[str, ...]
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         body = {
             "schema": "effectlock.prediction.v1",
             "command": self.command,
@@ -103,7 +104,7 @@ def _read_project_text(cwd: Path, rel: str, max_bytes: int = 1_000_000) -> str |
         return None
 
 
-def _read_project_json(cwd: Path, rel: str) -> dict | None:
+def _read_project_json(cwd: Path, rel: str) -> dict[str, Any] | None:
     text = _read_project_text(cwd, rel)
     if text is None:
         return None
@@ -184,7 +185,6 @@ def _git(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) 
         # Deliberately avoid invoking Git while inspecting an untrusted repository.
         # Only inspect the conventional in-repository .git/hooks directory. Worktree
         # or custom hooks paths are reported as unknown rather than followed outside cwd.
-        hooks_dir = cwd / ".git" / "hooks"
         names = ("pre-commit", "prepare-commit-msg", "commit-msg", "post-commit")
         found = False
         for name in names:
@@ -262,33 +262,191 @@ def _docker(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str
     return True
 
 
-def _mcp(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) -> bool:
+def _ephemeral_runner(words: list[str]) -> bool:
+    """True for commands that download a package and execute it in one step."""
+    if not words:
+        return False
+    exe = Path(words[0]).name
+    sub = words[1] if len(words) > 1 else ""
+    return (
+        exe in {"npx", "bunx", "uvx"}
+        or (exe in {"pnpm", "yarn"} and sub == "dlx")
+        or (exe == "npm" and sub in {"exec", "x"})
+        or (exe == "pipx" and sub == "run")
+    )
+
+
+def _runner(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) -> bool:
+    if not _ephemeral_runner(words):
+        return False
+    exe = Path(words[0]).name
+    _add(out, "process", "high", f"{exe} executes a package resolved at run time", "command semantics")
+    _add(out, "network", "high", f"{exe} may download the package from a registry before running it", "command semantics")
+    _add(out, "file", "medium", f"{exe} writes the downloaded package to a local cache", "command semantics")
+    unknowns.append("code fetched at run time is not visible to static inspection")
+    return True
+
+
+AGENT_CLIS = frozenset({"claude", "codex", "gemini", "cursor-agent", "aider", "goose", "opencode", "amp", "copilot"})
+MCP_CONFIGS = (".mcp.json", "mcp.json", ".cursor/mcp.json", ".vscode/mcp.json")
+_ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
+
+
+def _tool_server(name: str, spec: dict[str, Any], source: str, out: list[Evidence]) -> None:
+    """Map one configured MCP server to the effects its tools can reach."""
+    _add(out, "mcp", "high", f"agent can call the tools exposed by MCP server {name!r}", source)
+    command = spec.get("command")
+    args = [a for a in spec.get("args", []) if isinstance(a, str)] if isinstance(spec.get("args"), list) else []
+    if isinstance(command, str) and command.strip():
+        argv = [command, *args]
+        _add(out, "process", "high", "server starts as a local process", source)
+        if _ephemeral_runner(argv):
+            _add(out, "network", "high", "server package is downloaded when the server starts", source)
+        if Path(command).name in {"docker", "podman"}:
+            _add(out, "container", "high", "server runs inside a container runtime", source)
+        if any(a.startswith(("/", "~")) for a in args):
+            _add(out, "file", "medium", "server is given a filesystem path to operate on", source)
+    if any(isinstance(spec.get(key), str) for key in ("url", "serverUrl", "httpUrl")):
+        _add(out, "network", "high", "server is reached over the network", source)
+    env = spec.get("env")
+    if isinstance(env, dict) and env:
+        names = sorted(k for k in env if isinstance(k, str) and _ENV_NAME.fullmatch(k))
+        shown = ", ".join(names[:5]) + (", ..." if len(names) > 5 else "")
+        _add(out, "environment", "medium", f"server receives environment variables: {shown or 'unnamed'}", source)
+
+
+def _tools(words: list[str], cwd: Path, out: list[Evidence], unknowns: list[str]) -> bool:
     if not words:
         return False
     exe = Path(words[0]).name.lower()
-    joined = " ".join(words).lower()
-    if "mcp" not in exe and "mcp" not in joined:
+    agent = exe in AGENT_CLIS
+    if not agent and "mcp" not in " ".join(words).lower():
         return False
-    _add(out, "process", "medium", "command appears to invoke MCP-related tooling", "command semantics")
-    _add(out, "mcp", "high", "MCP call can exercise the capability represented by the configured server/tool", "command semantics")
-    for name in (".mcp.json", "mcp.json"):
-        p = cwd / name
-        obj = _read_project_json(cwd, name)
+    if agent:
+        _add(out, "process", "high", f"{exe} is an AI coding agent that can run commands on its own", "command semantics")
+        _add(out, "file", "medium", f"{exe} can edit files in the project", "command semantics")
+        _add(out, "network", "high", f"{exe} contacts its model provider", "command semantics")
+    else:
+        _add(out, "process", "medium", "command appears to invoke MCP-related tooling", "command semantics")
+        _add(out, "mcp", "high", "MCP call can exercise the capability represented by the configured server/tool", "command semantics")
+    found = False
+    for rel in MCP_CONFIGS:
+        obj = _read_project_json(cwd, rel)
         if not obj:
             continue
-        text = json.dumps(obj)
-        if re.search(r"https?://|wss?://", text):
-            _add(out, "network", "high", "MCP configuration contains a remote transport", name)
-        if re.search(r'"command"\s*:', text):
-            _add(out, "process", "high", "MCP configuration can spawn a local server process", name)
+        for key in ("mcpServers", "servers"):
+            servers = obj.get(key)
+            if not isinstance(servers, dict):
+                continue
+            for name, spec in sorted(servers.items()):
+                if isinstance(name, str) and isinstance(spec, dict):
+                    found = True
+                    _tool_server(name[:64], spec, f"{rel}:{key}.{name[:64]}", out)
+    if agent and not found:
+        unknowns.append(f"{exe} may load user-level MCP tools outside the project that EffectLock does not read")
     unknowns.append("MCP server implementations may exercise effects beyond their advertised tool name")
     return True
 
 
-def _generic(words: list[str], raw: str, out: list[Evidence]) -> None:
-    if not words:
+_SEGMENT_OPS = frozenset({"&&", "||", ";", "|", "&", ";;", "|&"})
+_SHELLS = frozenset({"sh", "bash", "zsh", "dash"})
+_MAX_DEPTH = 4
+
+
+def _split_segments(command: str) -> list[list[str]]:
+    lex = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+    lex.whitespace_split = True
+    segments: list[list[str]] = [[]]
+    for token in lex:
+        if token in _SEGMENT_OPS:
+            segments.append([])
+        else:
+            segments[-1].append(token)
+    return [s for s in segments if s]
+
+
+def _unwrap(words: list[str], out: list[Evidence]) -> list[str] | str:
+    """Strip wrappers that run another command; return the inner argv, or a nested shell string."""
+    while words:
+        exe = Path(words[0]).name
+        if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", words[0]):
+            words = words[1:]
+        elif exe in {"sudo", "doas"}:
+            _add(out, "process", "high", f"{exe} runs the command with elevated privileges", "command semantics")
+            i = 1
+            while i < len(words) and words[i].startswith("-"):
+                i += 2 if words[i] in {"-u", "-g", "-C", "-D", "-h", "-p", "-r", "-t", "-U"} else 1
+            words = words[i:]
+        elif exe in {"env", "nohup", "time", "command", "exec", "nice"}:
+            i = 1
+            while i < len(words) and (words[i].startswith("-") or "=" in words[i]):
+                i += 2 if exe == "nice" and words[i] == "-n" else 1
+            words = words[i:]
+        elif exe in _SHELLS and "-c" in words[1:] and words.index("-c") + 1 < len(words):
+            return words[words.index("-c") + 1]
+        else:
+            return words
+    return words
+
+
+def _project_subdir(root: Path, cur: Path, target: str) -> Path | None:
+    candidate = Path(target)
+    if candidate.is_absolute() or target.startswith("~"):
+        return None
+    probe = cur
+    for part in candidate.parts:
+        probe = probe / part
+        if probe.is_symlink():
+            return None
+    try:
+        resolved = probe.resolve()
+        resolved.relative_to(root)
+    except (OSError, ValueError):
+        return None
+    return resolved if resolved.is_dir() else None
+
+
+def _inspect(command: str, root: Path, out: list[Evidence], unknowns: list[str], depth: int) -> None:
+    try:
+        segments = _split_segments(command)
+    except ValueError as exc:
+        raise ValueError(f"cannot parse command: {exc}") from exc
+    cur = root
+    for segment in segments:
+        words = _unwrap(segment, out)
+        if isinstance(words, str):
+            if depth >= _MAX_DEPTH:
+                unknowns.append("nested shell -c commands exceed the inspection depth")
+            else:
+                _inspect(words, root, out, unknowns, depth + 1)
+            continue
+        if not words:
+            continue
+        if words[0] == "cd":
+            nxt = _project_subdir(root, cur, words[1]) if len(words) > 1 else None
+            if nxt is None:
+                unknowns.append("cd leaves the project directory or cannot be resolved; later metadata is read from the previous directory")
+            else:
+                cur = nxt
+            continue
+        start = len(out)
+        for expander in (_runner, _npm, _git, _pip, _cargo, _docker, _tools):
+            if expander(words, cur, out, unknowns):
+                break
+        if cur != root:
+            # Metadata sources are reported relative to the project root, not the cd target.
+            prefix = cur.relative_to(root).as_posix()
+            for i in range(start, len(out)):
+                ev = out[i]
+                if ev.source not in {"command semantics", "command text"}:
+                    out[i] = Evidence(ev.effect, ev.confidence, ev.reason, f"{prefix}/{ev.source}")
+
+
+def _generic(raw: str, out: list[Evidence]) -> None:
+    if not raw.strip():
         return
-    _add(out, "process", "high", "executing a shell command starts at least one process", "command semantics")
+    if not any(x.effect == "process" for x in out):
+        _add(out, "process", "high", "executing a shell command starts at least one process", "command semantics")
     if re.search(r"(?:>|>>|\brm\b|\bmv\b|\bcp\b|\bmkdir\b|\btouch\b|\bchmod\b|\bchown\b|\btee\b|\bsed\s+-i\b)", raw):
         _add(out, "file", "medium", "command text includes filesystem mutation syntax", "command text")
     if re.search(r"\b(?:sftp|ftp|curl|wget|scp|ssh|rsync|ncat|nc)\b", raw):
@@ -305,17 +463,9 @@ def predict(command: str, cwd: Path) -> Prediction:
         raise ValueError("cwd must be an existing directory")
     if "\x00" in command or len(command.encode("utf-8")) > 32768:
         raise ValueError("invalid command")
-    try:
-        words = shlex.split(command, posix=True)
-    except ValueError as exc:
-        raise ValueError(f"cannot parse command: {exc}") from exc
     out: list[Evidence] = []
     unknowns: list[str] = []
-    handled = False
-    for f in (_npm, _git, _pip, _cargo, _docker, _mcp):
-        if f(words, cwd, out, unknowns):
-            handled = True
-            break
-    _generic(words, command, out)
+    _inspect(command, cwd, out, unknowns, 0)
+    _generic(command, out)
     effects = tuple(e for e in EFFECTS if any(x.effect == e for x in out))
     return Prediction(command, str(cwd), effects, tuple(out), tuple(dict.fromkeys(unknowns)))

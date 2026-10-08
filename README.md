@@ -12,6 +12,27 @@ It predicts six effect classes:
 effectlock -- npm install
 ```
 
+## v0.3: tools
+
+Before you let a coding agent run, see which tools it can reach:
+
+```bash
+effectlock --graph -- claude
+```
+
+Every server in the project's MCP configuration (`.mcp.json`, `mcp.json`, `.cursor/mcp.json`, `.vscode/mcp.json`) becomes its own source:
+
+```text
+command -> .mcp.json:mcpServers.filesystem -> process [high]
+command -> .mcp.json:mcpServers.filesystem -> network [high]   (npx downloads the server)
+command -> .mcp.json:mcpServers.github -> network [high]
+command -> .mcp.json:mcpServers.github -> environment [medium] (GITHUB_TOKEN)
+```
+
+Environment values and server URLs are never copied into the output. Block agents that can reach tools with `--deny mcp`.
+
+Real agent commands are inspected as written: `cd app && npm install` reads `app/package.json`, `sudo` and `bash -c '...'` are unwrapped, and `npx`/`uvx`/`pnpm dlx` are reported as downloading code.
+
 ## v0.2: effect graph
 
 Show where predicted effects come from:

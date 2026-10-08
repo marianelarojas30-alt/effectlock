@@ -4,15 +4,15 @@
 # EffectLock-Origin: EL-MB-C8FBF0BBFB03BD6A
 # This notice must be kept in all copies and modified versions (see LICENSE).
 
-from pathlib import Path
 import json
 import os
 import stat
 import tempfile
 import unittest
+from pathlib import Path
 
-from effectlock.core import predict, terminal_safe
 from effectlock.cli import safe_receipt_path, write_receipt
+from effectlock.core import predict, terminal_safe
 
 
 class EffectLockTests(unittest.TestCase):
@@ -219,7 +219,8 @@ class EffectLockTests(unittest.TestCase):
         target.write_text("old")
         body = predict("echo hi", self.root).to_dict()
         written = write_receipt(self.root, ".effectlock/last.json", body)
-        self.assertEqual(written, target.resolve())  # macOS: /var is a symlink to /private/var
+        # write_receipt returns a path under the resolved root (e.g. /private/var on macOS).
+        self.assertEqual(written, target.resolve())
         self.assertEqual(json.loads(target.read_text())["sha256"], body["sha256"])
         self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o600)
 
