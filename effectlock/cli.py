@@ -8,10 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import secrets
 import shlex
-import stat
 import sys
 from pathlib import Path
 from typing import Any
@@ -22,6 +19,7 @@ from .graph import render_effect_graph
 from .policy import PolicyConfig, evaluate_policy, load_policy
 from .provenance import NOTICE
 from .report import build_report
+from .safefs import write_bytes_atomic_under
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -70,69 +68,8 @@ def safe_receipt_path(cwd: Path, requested: str) -> Path:
 def write_receipt(cwd: Path, requested: str, body: dict[str, Any]) -> Path:
     """Write a receipt atomically beneath cwd without following symlinks."""
     root, rel = _receipt_relative_path(cwd, requested)
-    if os.name != "posix" or not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
-        raise ValueError("secure receipt writing requires a POSIX platform with O_NOFOLLOW")
-
-    dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-    root_fd = os.open(root, dir_flags)
-    opened: list[int] = [root_fd]
-    dir_fd = root_fd
-    try:
-        for part in rel.parts[:-1]:
-            if part in {"", ".", ".."}:
-                raise ValueError("invalid receipt path component")
-            try:
-                child_fd = os.open(part, dir_flags, dir_fd=dir_fd)
-            except FileNotFoundError:
-                os.mkdir(part, mode=0o700, dir_fd=dir_fd)
-                child_fd = os.open(part, dir_flags, dir_fd=dir_fd)
-            except OSError as exc:
-                raise ValueError("receipt path contains an unsafe directory") from exc
-            opened.append(child_fd)
-            dir_fd = child_fd
-
-        filename = rel.parts[-1]
-        try:
-            st = os.stat(filename, dir_fd=dir_fd, follow_symlinks=False)
-        except FileNotFoundError:
-            st = None
-        if st is not None and stat.S_ISLNK(st.st_mode):
-            raise ValueError("receipt target must not be a symlink")
-        if st is not None and not stat.S_ISREG(st.st_mode):
-            raise ValueError("receipt target must be a regular file")
-
-        payload = (json.dumps(body, indent=2, sort_keys=True) + "\n").encode("utf-8")
-        tmp_name = f".{filename}.tmp-{os.getpid()}-{secrets.token_hex(8)}"
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
-        fd = os.open(tmp_name, flags, 0o600, dir_fd=dir_fd)
-        try:
-            with os.fdopen(fd, "wb", closefd=True) as stream:
-                stream.write(payload)
-                stream.flush()
-                os.fsync(stream.fileno())
-        except Exception:
-            try:
-                os.unlink(tmp_name, dir_fd=dir_fd)
-            except OSError:
-                pass
-            raise
-
-        try:
-            os.replace(tmp_name, filename, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
-        except Exception:
-            try:
-                os.unlink(tmp_name, dir_fd=dir_fd)
-            except OSError:
-                pass
-            raise
-        os.fsync(dir_fd)
-        return root / rel
-    finally:
-        for fd in reversed(opened):
-            try:
-                os.close(fd)
-            except OSError:
-                pass
+    payload = (json.dumps(body, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    return write_bytes_atomic_under(root, rel, payload, what="receipt")
 
 
 def main(argv: list[str] | None = None) -> int:

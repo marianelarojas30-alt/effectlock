@@ -5,6 +5,7 @@
 - relicense from MIT to PolyForm Noncommercial 1.0.0: free for noncommercial use, commercial use requires a separate license from the author
 - show copyright and license notice in `--version` and `--help`
 - add origin fingerprint `EL-MB-C8FBF0BBFB03BD6A` to every source file header and a hash-covered `generator` block to JSON reports and receipts, enforced by `tests/test_provenance.py`
+- refactor: the no-follow receipt writer and policy reader now share one module, `effectlock/safefs.py`, instead of two near-identical copies of the security-critical descriptor walk; behavior and error messages are unchanged, with 9 new tests in `tests/test_safefs.py` (design note: `docs/design/safefs.md`)
 
 ## 0.3.0 - 2026-09-30
 
