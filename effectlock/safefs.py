@@ -73,7 +73,7 @@ def read_bytes_under(root: Path, rel: Path, max_bytes: int, *, what: str) -> byt
     unreadable = f"{what} file is not safely readable"
     with _parent_dir_fd(root.resolve(), rel, what, create=False) as dir_fd:
         try:
-            fd = os.open(rel.parts[-1], os.O_RDONLY | os.O_NOFOLLOW, dir_fd=dir_fd)
+            fd = os.open(rel.parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dir_fd)
         except OSError as exc:
             raise ValueError(unreadable) from exc
         try:
