@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix the offline installer so the installed CLI includes all package modules and runs outside the source checkout.
+
 - security: open policy files nonblocking before validating their type, so a named pipe cannot stall the preflight; add a bounded subprocess regression test
 
 - relicense from MIT to PolyForm Noncommercial 1.0.0: free for noncommercial use, commercial use requires a separate license from the author

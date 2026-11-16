@@ -6,8 +6,10 @@
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -45,6 +47,16 @@ class ProvenanceTests(unittest.TestCase):
         out = subprocess.run([sys.executable, "-c", "from effectlock.cli import main; main()", "--version"],
                              capture_output=True, text=True, cwd=ROOT)
         self.assertIn("Marianela Bourgault", out.stdout)
+
+    @unittest.skipUnless(os.name == "posix", "offline installer requires POSIX")
+    def test_installed_cli_runs_outside_source_checkout(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            bin_dir = workspace / "bin"
+            env = {**os.environ, "EFFECTLOCK_HOME": str(workspace / "app"), "EFFECTLOCK_BIN": str(bin_dir), "PYTHON": sys.executable}
+            subprocess.run(["sh", str(ROOT / "install.sh")], cwd=ROOT, env=env, check=True, capture_output=True)
+            output = subprocess.check_output([str(bin_dir / "effectlock"), "--json", "--", "echo", "hello"], cwd=workspace, env=env)
+            self.assertEqual(json.loads(output)["generator"], GENERATOR)
 
 
 if __name__ == "__main__":
